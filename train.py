@@ -10,7 +10,7 @@ import time
 import numpy as np
 
 
-def train(train_img_path, train_gt_path, pths_path, batch_size, lr, num_workers, epoch_iter, interval):
+def train(train_img_path, train_gt_path, pths_path, batch_size, lr, num_workers, epoch_iter, interval, model_restore_path=None):
 	file_num = len(os.listdir(train_img_path))
 	trainset = custom_dataset(train_img_path, train_gt_path)
 	train_loader = data.DataLoader(trainset, batch_size=batch_size, \
@@ -18,14 +18,19 @@ def train(train_img_path, train_gt_path, pths_path, batch_size, lr, num_workers,
 	
 	criterion = Loss()
 	device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-	model = EAST()
+	model = EAST().to(device)
+	if model_restore_path is not None:
+		print('restore from %s' % model_restore_path)
+		model.load_state_dict(torch.load(model_restore_path))
+		print('restore complete')
 	data_parallel = False
 	if torch.cuda.device_count() > 1:
 		model = nn.DataParallel(model)
 		data_parallel = True
-	model.to(device)
+	#model.to(device)
 	optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-	scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[epoch_iter//2], gamma=0.1)
+	#scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[epoch_iter//2], gamma=0.1)
+	scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[3,6,8], gamma=0.1)
 
 	for epoch in range(epoch_iter):	
 		model.train()
@@ -43,8 +48,8 @@ def train(train_img_path, train_gt_path, pths_path, batch_size, lr, num_workers,
 			loss.backward()
 			optimizer.step()
 
-			print('Epoch is [{}/{}], mini-batch is [{}/{}], time consumption is {:.8f}, batch_loss is {:.8f}'.format(\
-              epoch+1, epoch_iter, i+1, int(file_num/batch_size), time.time()-start_time, loss.item()))
+			print('Epoch is [{}/{}], mini-batch is [{}/{}], time consumption is {:.8f}, batch_loss is {:.8f}, time is {}'.format(\
+                                epoch+1, epoch_iter, i+1, int(file_num/batch_size), time.time()-start_time, loss.item(), time.strftime('%d-%H:%M:%S', time.localtime(time.time()))))
 		
 		print('epoch_loss is {:.8f}, epoch_time is {:.8f}'.format(epoch_loss/int(file_num/batch_size), time.time()-epoch_time))
 		print(time.asctime(time.localtime(time.time())))
@@ -55,13 +60,14 @@ def train(train_img_path, train_gt_path, pths_path, batch_size, lr, num_workers,
 
 
 if __name__ == '__main__':
-	train_img_path = os.path.abspath('../ICDAR_2015/train_img')
-	train_gt_path  = os.path.abspath('../ICDAR_2015/train_gt')
+	train_img_path = os.path.abspath('./ICDAR_2015/train_img')
+	train_gt_path  = os.path.abspath('./ICDAR_2015/train_gt')
+	model_restore_path = os.path.abspath('./pths/model_epoch_v2.1.pth')
 	pths_path      = './pths'
 	batch_size     = 24 
-	lr             = 1e-3
+	lr             = 1e-2
 	num_workers    = 4
-	epoch_iter     = 600
-	save_interval  = 5
-	train(train_img_path, train_gt_path, pths_path, batch_size, lr, num_workers, epoch_iter, save_interval)	
+	epoch_iter     = 9
+	save_interval  = 1
+	train(train_img_path, train_gt_path, pths_path, batch_size, lr, num_workers, epoch_iter, save_interval, model_restore_path)	
 	

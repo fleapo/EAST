@@ -1,0 +1,12 @@
+*.pyc
+test/
+pths/
+ICDAR_2015/
+ICDAR_2015_v1/
+old/
+__pycache__/
+TRUE_ICDAR_2015/
+bk_pth/
+submit/
+nohup.out
+.vscode/

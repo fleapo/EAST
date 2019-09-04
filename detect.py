@@ -6,6 +6,7 @@ import os
 from dataset import get_rotate_mat
 import numpy as np
 import lanms
+from glob import glob
 
 
 def resize_img(img):
@@ -64,6 +65,7 @@ def restore_polys(valid_pos, valid_geo, score_shape, scale=4):
 	d = valid_geo[:4, :] # 4 x N
 	angle = valid_geo[4, :] # N,
 
+	# 对于每个分类为前景的点
 	for i in range(valid_pos.shape[0]):
 		x = valid_pos[i, 0]
 		y = valid_pos[i, 1]
@@ -97,13 +99,17 @@ def get_boxes(score, geo, score_thresh=0.9, nms_thresh=0.2):
 		boxes       : final polys <numpy.ndarray, (n,9)>
 	'''
 	score = score[0,:,:]
+        # 找到分数大于阈值的区域坐标列表
 	xy_text = np.argwhere(score > score_thresh) # n x 2, format is [r, c]
 	if xy_text.size == 0:
 		return None
-
+        # 按第二轴的顺序排序坐标列表
 	xy_text = xy_text[np.argsort(xy_text[:, 0])]
+        # 换轴
 	valid_pos = xy_text[:, ::-1].copy() # n x 2, [x, y]
+        # 取出geo图上，分类score大于阈值的区域
 	valid_geo = geo[:, xy_text[:, 0], xy_text[:, 1]] # 5 x n
+        # 推出结果矩形
 	polys_restored, index = restore_polys(valid_pos, valid_geo, score.shape) 
 	if polys_restored.size == 0:
 		return None
@@ -179,19 +185,40 @@ def detect_dataset(model, device, test_img_path, submit_path):
 		with open(os.path.join(submit_path, 'res_' + os.path.basename(img_file).replace('.jpg','.txt')), 'w') as f:
 			f.writelines(seq)
 
+def detect_im_list(model, im_list):
+	for img_path in im_list:
+		res_img = os.path.join('./test/out/', os.path.basename(img_path))
+		img = Image.open(img_path).convert('RGB')
+	
+		boxes = detect(img, model, device)
+		plot_img = plot_boxes(img, boxes)	
+		plot_img.save(res_img)
+
 
 if __name__ == '__main__':
-	img_path    = '../ICDAR_2015/test_img/img_2.jpg'
+	img_path    = './test/in/000001.jpg'
+	img_path    = './ICDAR_2015/test_img/img_01137092899394.jpg'
+
 	model_path  = './pths/east_vgg16.pth'
-	res_img     = './res.bmp'
+	model_path  = './pths/model_epoch_600.pth'
+	model_path = './pths/model_epoch_6.pth'
+	model_path = './pths/model_epoch_3.pth'
+
+	res_img     = os.path.join('./test/out/', os.path.basename(img_path))
 	device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 	model = EAST().to(device)
 	model.load_state_dict(torch.load(model_path))
 	model.eval()
-	img = Image.open(img_path)
+
+	img_list = glob('./ICDAR_2015_v1/test_img/*g')
+	#img_list = glob('./test/in/*g')
+
+	print(img_list)
+	detect_im_list(model, img_list)
+	#img = Image.open(img_path)
 	
-	boxes = detect(img, model, device)
-	plot_img = plot_boxes(img, boxes)	
-	plot_img.save(res_img)
+	#boxes = detect(img, model, device)
+	#plot_img = plot_boxes(img, boxes)	
+	#plot_img.save(res_img)
 
 
